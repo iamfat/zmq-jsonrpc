@@ -1,0 +1,29 @@
+{
+  "name": "zmq-jsonrpc",
+  "version": "0.1.0",
+  "description": "JSON-RPC 2.0 on 0MQ",
+  "main": "index.js",
+  "author": "Jia Huang <iamfat@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:iamfat/zmq-jsonrpc"
+  },
+  "keywords": [
+    "ZeroMQ",
+    "JSON",
+    "RPC"
+  ],
+  "bugs": {
+    "url": "https://github.com/iamfat/zmq-jsonrpc/issues"
+  },
+  "homepage": "https://github.com/iamfat/zmq-jsonrpc",
+  "dependencies": {
+    "moment": "^2.6.0",
+    "msgpack": "~0.2.3",
+    "promise": "^4.0.0",
+    "wildcard": "^0.1.4",
+    "winston": "^0.7.3",
+    "zmq": "~2.6.0"
+  }
+}
