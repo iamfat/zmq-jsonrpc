@@ -98,28 +98,22 @@ function _process(data, client_id) {
 
         try {
             var result = cb.apply(self, [request.params, client_id ? client_id.toString('base64') : null]);
-        }
-        catch (e) {
+        } catch (e) {
             if (e instanceof RPCException) {
                 _response(e);
-            }
-            else {
-                Winston.debug(Util.format(
-                    "\x1b[31;1m0MQ UNEXPECTED ERROR: %s\x1b[0m", JSON.stringify(e)
-                ));
+            } else {
+                throw e;
             }        
         }
         
         if (typeof(result) == 'function') {
             // deferred callback
             result(_response);
-        }
-        else {
+        } else {
             _response(null, result);
         }
         
-    }
-    else if (request.id && self.promisedRequests.hasOwnProperty(request.id)) {
+    } else if (request.id && self.promisedRequests.hasOwnProperty(request.id)) {
         var rq = self.promisedRequests[request.id];
         clearTimeout(rq.timeout);
         delete self.promisedRequests[request.id];
@@ -147,7 +141,15 @@ function _process(data, client_id) {
             });
         }
     }
-
+    else {
+        _send_response.apply(self, [{
+            jsonrpc:'2.0',
+            error: {
+                code: -32600,
+                message: 'Invalid Request'
+            }
+        }, client_id]);
+    }
 }
 
 var RPC = function (path) {
