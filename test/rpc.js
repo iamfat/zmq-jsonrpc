@@ -12,19 +12,20 @@ describe("JSON RPC on ZMQ:", function(){
     
     describe("Client RPC", function() {
 
-        it("should be called", function() {
+        it("should be called", function(done) {
 
             promise = new Promise(function(resolve, reject) {
                 server.calling("foo", function(params, client_id) {
-                    assert.equal(params.foo, "bar");
                     resolve(client_id); // pass client id to next test
+                    assert.equal(params.foo, "bar");
+                    done();
                     return params.foo;
                 });
            });
 
 
            client
-           .call("foo", {foo:"bar"})
+           .call("foo", {foo:"bar1"})
            .done(function(ret){
                assert.equal(ret, "bar");
            });
@@ -35,7 +36,7 @@ describe("JSON RPC on ZMQ:", function(){
 
     describe("Server RPC", function(){
 
-        it("should be called", function(){
+        it("should be called", function(done){
 
             client.calling("foo", function(params, client_id){
                 assert.equal(params.foo, "bar");
@@ -47,6 +48,7 @@ describe("JSON RPC on ZMQ:", function(){
                 .call("foo", {foo:"bar"}, client_id)
                 .done(function(ret){
                     assert.equal(ret, "bar");
+                    done();
                 });
             });
 
