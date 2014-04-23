@@ -17,14 +17,14 @@ function _send_response(data, client_id) {
     var self = this;
     var response = msgpack.pack(data);
     if (client_id) {
-        Winston.debug(Util.format(
+        self.logger.debug(Util.format(
             "0MQ [%s] => %s: %s", 
             data.id, client_id.toString('base64'), JSON.stringify(data)
         ));
         self.socket.send([client_id, response]);                   
     }
     else {
-        Winston.debug(Util.format(
+        self.logger.debug(Util.format(
             "0MQ [%s] => %s", 
             data.id, JSON.stringify(data)
         ));
@@ -38,7 +38,7 @@ function _process(data, client_id) {
 
     try {
         request = msgpack.unpack(data);
-        Winston.debug(Util.format(
+        self.logger.debug(Util.format(
             "0MQ [%s] <= %s", request.id || "N/A", JSON.stringify(request)
         ));
     }
@@ -119,7 +119,7 @@ function _process(data, client_id) {
         delete self.promisedRequests[request.id];
 
         if (request.hasOwnProperty('result')) {
-            Winston.debug(Util.format(
+            self.logger.debug(Util.format(
                 "0MQ remote: %s(%s) <= %s", 
                 rq.method, JSON.stringify(rq.params), 
                 JSON.stringify(request.result)
@@ -127,7 +127,7 @@ function _process(data, client_id) {
             rq.resolve(request.result);
         }
         else if (request.hasOwnProperty('error')) {
-            Winston.debug(Util.format(
+            self.logger.debug(Util.format(
                 "0MQ remote: %s(%s) <= %s", 
                 rq.method, JSON.stringify(rq.params), 
                 JSON.stringify(request.error)
@@ -158,6 +158,7 @@ var RPC = function (path) {
     this.callTimeout = 5000;
     this.isServer = false;
     this.Exception = RPCException;
+    this.logger = new Winston.Logger();
 }
 
 RPC.prototype.bind = function (path) {
@@ -194,7 +195,7 @@ RPC.prototype.connect = function (path) {
 
     socket
     .on("error", function (err){
-        Winston.debug(Util.format("0MQ error: %s", err));
+        self.logger.debug(Util.format("0MQ error: %s", err));
         // reconnect in 3s
         setTimeout(function (){
             socket.connect(path);
@@ -271,10 +272,10 @@ RPC.prototype.call = function (method, params, client_id) {
         };
     
         if (client_id) {
-            Winston.debug(Util.format("0MQ [%s] => [%s] %s", id, client_id, JSON.stringify(data)));
+            self.logger.debug(Util.format("0MQ [%s] => [%s] %s", id, client_id, JSON.stringify(data)));
         }
         else {
-            Winston.debug(Util.format("0MQ [%s] => %s", id, JSON.stringify(data)));
+            self.logger.debug(Util.format("0MQ [%s] => %s", id, JSON.stringify(data)));
         }
     
         var msg = msgpack.pack(data)
@@ -293,7 +294,7 @@ RPC.prototype.call = function (method, params, client_id) {
         };
 
         self.promisedRequests[id].timeout = setTimeout(function (){
-            Winston.debug(Util.format("0MQ [%s] <= timeout", id));
+            self.logger.debug(Util.format("0MQ [%s] <= timeout", id));
             delete self.promisedRequests[id];
             reject({
                 code: -32603,
