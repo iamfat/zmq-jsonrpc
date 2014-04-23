@@ -18,14 +18,14 @@ function _send_response(data, client_id) {
     var response = msgpack.pack(data);
     if (client_id) {
         Winston.debug(Util.format(
-            "\x1b[1;30m0MQ [%s] => %s: %s\x1b[0m", 
+            "0MQ [%s] => %s: %s", 
             data.id, client_id.toString('base64'), JSON.stringify(data)
         ));
         self.socket.send([client_id, response]);                   
     }
     else {
         Winston.debug(Util.format(
-            "\x1b[1;30m0MQ [%s] => %s\x1b[0m", 
+            "0MQ [%s] => %s", 
             data.id, JSON.stringify(data)
         ));
         self.socket.send(response);                   
@@ -39,7 +39,7 @@ function _process(data, client_id) {
     try {
         request = msgpack.unpack(data);
         Winston.debug(Util.format(
-            "\x1b[1;30m0MQ [%s] <= %s\x1b[0m", request.id || "N/A", JSON.stringify(request)
+            "0MQ [%s] <= %s", request.id || "N/A", JSON.stringify(request)
         ));
     }
     catch (e) {
@@ -194,7 +194,7 @@ RPC.prototype.connect = function (path) {
 
     socket
     .on("error", function (err){
-        Winston.debug(Util.format("\x1b[31m0MQ error: %s\x1b[0m", err));
+        Winston.debug(Util.format("0MQ error: %s", err));
         // reconnect in 3s
         setTimeout(function (){
             socket.connect(path);
@@ -271,10 +271,10 @@ RPC.prototype.call = function (method, params, client_id) {
         };
     
         if (client_id) {
-            Winston.debug(Util.format("\x1b[1;30m0MQ [%s] => [%s] %s\x1b[0m", id, client_id, JSON.stringify(data)));
+            Winston.debug(Util.format("0MQ [%s] => [%s] %s", id, client_id, JSON.stringify(data)));
         }
         else {
-            Winston.debug(Util.format("\x1b[1;30m0MQ [%s] => %s\x1b[0m", id, JSON.stringify(data)));
+            Winston.debug(Util.format("0MQ [%s] => %s", id, JSON.stringify(data)));
         }
     
         var msg = msgpack.pack(data)

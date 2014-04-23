@@ -25,7 +25,7 @@ describe("JSON RPC on ZMQ:", function(){
 
 
            client
-           .call("foo", {foo:"bar1"})
+           .call("foo", {foo:"bar"})
            .done(function(ret){
                assert.equal(ret, "bar");
            });
