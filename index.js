@@ -314,5 +314,8 @@ module.exports = {
     bind: function (path) {
         var rpc = new RPC();
         return rpc.bind(path);
+    },
+    rpc: function () {
+        return new RPC();
     }
 };
