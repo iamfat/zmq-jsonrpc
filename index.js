@@ -306,16 +306,19 @@ RPC.prototype.call = function (method, params, client_id) {
     
 };
 
-module.exports = {
-    connect: function (path) {
-        var rpc = new RPC();
-        return rpc.connect(path);
-    },
-    bind: function (path) {
-        var rpc = new RPC();
-        return rpc.bind(path);
-    },
-    rpc: function () {
-        return new RPC();
-    }
+var RPCWrapper = function() {
+    return new RPC();
 };
+
+RPCWrapper.connect = function (path) {
+    var rpc = new RPC();
+    return rpc.connect(path);
+};
+
+RPCWrapper.bind = function (path) {
+    var rpc = new RPC();
+    return rpc.bind(path);
+};
+
+module.exports = RPCWrapper;
+
