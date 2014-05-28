@@ -65,6 +65,7 @@ function _process(data, client_id) {
     }
 
     if (request.hasOwnProperty('method')) {
+        /** request */
         
         function _response(e, result) {
             
@@ -93,12 +94,30 @@ function _process(data, client_id) {
             
         }
 
+        var params = request.params;
+
         var cb = self._callings[request.method];
-        if (!cb) _response({code: -32601, message: 'Method not found'});
+        if (!cb) {
+            if (self._callings['*']) {
+                /**
+                 * 如果 method not found, 但有 * handler,
+                 * 则使用 * handler
+                 */
+                cb = self._callings['*'];
+                params = {
+                    method: request.method,
+                    params: request.params
+                };
+            }
+            else {
+                _response({code: -32601, message: 'Method not found'});
+            }
+        }
 
         try {
-            var result = cb.apply(self, [request.params, client_id ? client_id.toString('base64') : null]);
+            var result = cb.apply(self, [params, client_id ? client_id.toString('base64') : null]);
         } catch (e) {
+
             if (e instanceof RPCException) {
                 _response(e);
             } else {
@@ -114,6 +133,8 @@ function _process(data, client_id) {
         }
         
     } else if (request.id && self.promisedRequests.hasOwnProperty(request.id)) {
+        /** response */
+
         var rq = self.promisedRequests[request.id];
         clearTimeout(rq.timeout);
         delete self.promisedRequests[request.id];
@@ -255,7 +276,7 @@ RPC.prototype.removeCallings = function (pattern) {
 }
 
 RPC.prototype.call = function (method, params, client_id) {
-	
+
     var self = this;
     
     return new Promise(function(resolve, reject) {
