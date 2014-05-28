@@ -342,4 +342,3 @@ RPCWrapper.bind = function (path) {
 };
 
 module.exports = RPCWrapper;
-
