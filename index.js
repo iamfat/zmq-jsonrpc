@@ -98,6 +98,7 @@ function _process(data, client_id) {
 
         if (!cb && !self._callingDefault) {
             _response({code: -32601, message: 'Method not found'});
+            return;
         }
 
         var result;
@@ -120,6 +121,7 @@ function _process(data, client_id) {
 
             if (e instanceof RPCException) {
                 _response(e);
+                return;
             } else {
                 throw e;
             }        
@@ -130,6 +132,7 @@ function _process(data, client_id) {
             result(_response);
         } else {
             _response(null, result);
+            return;
         }
         
     } else if (request.id && self.promisedRequests.hasOwnProperty(request.id)) {
