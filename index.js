@@ -94,28 +94,28 @@ function _process(data, client_id) {
             
         }
 
-        var params = request.params;
-
         var cb = self._callings[request.method];
-        if (!cb) {
-            if (self._callings['*']) {
-                /**
-                 * 如果 method not found, 但有 * handler,
-                 * 则使用 * handler
-                 */
-                cb = self._callings['*'];
-                params = {
-                    method: request.method,
-                    params: request.params
-                };
-            }
-            else {
-                _response({code: -32601, message: 'Method not found'});
-            }
+
+        if (!cb && !self._callingDefault) {
+            _response({code: -32601, message: 'Method not found'});
         }
 
+        var result;
+
         try {
-            var result = cb.apply(self, [params, client_id ? client_id.toString('base64') : null]);
+
+            if (cb) {
+                result = cb.apply(self, [request.params, client_id ? client_id.toString('base64') : null]);
+            }
+            else { // use callingDefault
+
+                /**
+                 * 如果 method not found, 但有 callingDefault,
+                 * 则使用 callingDefault
+                 */
+                result = self._callingDefault.apply(self, [request.method, request.params, client_id ? client_id.toString('base64') : null]);
+            }
+
         } catch (e) {
 
             if (e instanceof RPCException) {
@@ -255,6 +255,17 @@ RPC.prototype.getUniqueId = function () {
 RPC.prototype.calling = function (method, cb) {
     var self = this;
     self._callings[method] = cb;
+    return self;
+}
+
+/**
+ * set a default handler for not-found methods.
+ *
+ * use rpc.callingDefault(null) to remove
+ */
+RPC.prototype.callingDefault = function (cb) {
+    var self = this;
+    self._callingDefault = cb;
     return self;
 }
 
