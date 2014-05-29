@@ -65,6 +65,7 @@ function _process(data, client_id) {
     }
 
     if (request.hasOwnProperty('method')) {
+        /** request */
         
         function _response(e, result) {
             
@@ -94,13 +95,33 @@ function _process(data, client_id) {
         }
 
         var cb = self._callings[request.method];
-        if (!cb) _response({code: -32601, message: 'Method not found'});
+
+        if (!cb && !self._callingDefault) {
+            _response({code: -32601, message: 'Method not found'});
+            return;
+        }
+
+        var result;
 
         try {
-            var result = cb.apply(self, [request.params, client_id ? client_id.toString('base64') : null]);
+
+            if (cb) {
+                result = cb.apply(self, [request.params, client_id ? client_id.toString('base64') : null]);
+            }
+            else { // use callingDefault
+
+                /**
+                 * 如果 method not found, 但有 callingDefault,
+                 * 则使用 callingDefault
+                 */
+                result = self._callingDefault.apply(self, [request.method, request.params, client_id ? client_id.toString('base64') : null]);
+            }
+
         } catch (e) {
+
             if (e instanceof RPCException) {
                 _response(e);
+                return;
             } else {
                 throw e;
             }        
@@ -111,9 +132,12 @@ function _process(data, client_id) {
             result(_response);
         } else {
             _response(null, result);
+            return;
         }
         
     } else if (request.id && self.promisedRequests.hasOwnProperty(request.id)) {
+        /** response */
+
         var rq = self.promisedRequests[request.id];
         clearTimeout(rq.timeout);
         delete self.promisedRequests[request.id];
@@ -237,6 +261,17 @@ RPC.prototype.calling = function (method, cb) {
     return self;
 }
 
+/**
+ * set a default handler for not-found methods.
+ *
+ * use rpc.callingDefault(null) to remove
+ */
+RPC.prototype.callingDefault = function (cb) {
+    var self = this;
+    self._callingDefault = cb;
+    return self;
+}
+
 RPC.prototype.removeCalling = function (key) {
     var self = this;
     if (self._callings.hasOwnProperty(key)) delete self._callings[key];
@@ -255,7 +290,7 @@ RPC.prototype.removeCallings = function (pattern) {
 }
 
 RPC.prototype.call = function (method, params, client_id) {
-	
+
     var self = this;
     
     return new Promise(function(resolve, reject) {
