@@ -3,25 +3,28 @@ var assert = require("assert");
 
 describe("JSON RPC on ZMQ later binding:", function(){
 
-
     var file = 'zeromq-test-' + Math.random().toString(36).substring(7),
         path = 'ipc://' + file;
+
     process.on('exit', function() {
         console.log('deleting '+ file);
         require('fs').unlinkSync(file);
     });
+
     var server = new zRPC();
     server.logger = {
         debug: function(m) {
             console.log('server', m);
         }
     };
+
     var client = new zRPC();
     client.logger = {
         debug: function(m) {
             console.log('client', m);
         }
     };
+    client.appendExpireTime = true;
     client.connect(path);
 
     describe("Server API", function() {
@@ -33,9 +36,6 @@ describe("JSON RPC on ZMQ later binding:", function(){
 
             /** 设置 server 的 API */
             server.calling("foo", function(params, client_id) {
-                /** 此测试中, server 不应被 call */
-                // done(new Error('server be called after this call already timeout'));
-
 
                 /**
 
@@ -61,6 +61,10 @@ describe("JSON RPC on ZMQ later binding:", function(){
                  // 会如此反反复复无穷尽也
 
                  */
+
+                /** 此测试中, server 不应被 call */
+                done(new Error('server be called after this call already timeout'));
+
                 return params.foo;
             });
 

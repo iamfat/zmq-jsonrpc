@@ -64,6 +64,12 @@ function _process(data, client_id) {
         return;
     }
 
+    /** 如果 request 附加了 expire time 信息, 且已 expire, 则不处理 */
+    if (request.etime && request.etime < Moment().valueOf()) {
+        self.logger.debug(request.id + ' expired, ignore');
+        return;
+    }
+    
     if (request.hasOwnProperty('method')) {
         /** request */
         
@@ -305,7 +311,18 @@ RPC.prototype.call = function (method, params, client_id) {
             params: params,
             id: id
         };
-    
+
+        /** 
+         * 由于 0MQ 的 MQ 特性, 如果 server 端未连接, 则请求会在
+         * client 端排队等待. 此时, 即使请求已被 client 端认定为超时,
+         * 在 server 连接后, 实际还是会发送给 server. 所以增加了可选的
+         * etime 属性, 以让 server 可依此丢弃过期的请求
+         */
+        if (self.appendExpireTime === true) {
+            // moment().valueOf() returns Unix Offset (milliseconds)
+            data.etime = Moment().valueOf() + self.callTimeout;
+        }
+
         if (client_id) {
             self.logger.debug(Util.format("0MQ [%s] => [%s] %s", id, client_id, JSON.stringify(data)));
         }
