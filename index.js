@@ -186,6 +186,11 @@ var RPC = function (path) {
     this.promisedRequests = {};
     this._callings = {};
     this.callTimeout = 5000;
+    /**
+     * hwm: high-water mark 水位线, 避免 server 离线后, client 积压过
+     * 多超时的消息
+     */
+    this.clientHWM = 10;
     this.isServer = false;
     this.Exception = RPCException;
     this.logger = new Winston.Logger();
@@ -217,8 +222,12 @@ RPC.prototype.connect = function (path) {
 
     var self = this;
     self.isServer = false;
-    
-    var socket = ZeroMQ.socket("dealer");
+
+    /**
+     * dealer 的 hwm 是 block 形式, 即达到 hwm 后, 会阻止新的请求
+     * (即 MQ 中保持最老的请求)
+     */
+    var socket = ZeroMQ.socket("dealer", {'hwm': self.clientHWM});
 
     self.socket = socket;
     socket.connect(path);
