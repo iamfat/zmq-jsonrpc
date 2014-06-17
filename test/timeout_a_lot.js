@@ -24,7 +24,6 @@ describe("JSON RPC on ZMQ later binding:", function(){
             console.log('client', m);
         }
     };
-    client.appendExpireTime = true;
     client.connect(path);
 
     describe("Server API", function() {

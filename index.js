@@ -64,12 +64,31 @@ function _process(data, client_id) {
         return;
     }
 
-    /** 如果 request 附加了 expire time 信息, 且已 expire, 则不处理 */
-    if (request.etime && request.etime < Moment().valueOf()) {
-        self.logger.debug(request.id + ' expired, ignore');
-        return;
+    /**
+     * 如果 request 附加了 timestamp 信息, 则需判断 request 是否超时
+     */
+    var etime;
+
+    if (request.timestamp) {
+
+        /**
+         * 过期时间为:
+         * request.timestamp + `request.timeout` 和 `server.serverTimeout`
+         * 中较小者
+         */
+        if (request.timeout > 0 && request.timeout < self.serverTimeout) {
+            etime = request.timestamp + request.timeout;
+        }
+        else {
+            etime = request.timestamp + self.serverTimeout;
+        }
+
+        if (etime < Moment().valueOf()) {
+            self.logger.debug(request.id + ' expired, ignore');
+            return;
+        }
     }
-    
+
     if (request.hasOwnProperty('method')) {
         /** request */
         
@@ -185,7 +204,9 @@ function _process(data, client_id) {
 var RPC = function (path) {
     this.promisedRequests = {};
     this._callings = {};
+    this.appendTimestamp = true;
     this.callTimeout = 5000;
+    this.serverTimeout = 5000;
     /**
      * hwm: high-water mark 水位线, 避免 server 离线后, client 积压过
      * 多超时的消息
@@ -324,12 +345,14 @@ RPC.prototype.call = function (method, params, client_id) {
         /** 
          * 由于 0MQ 的 MQ 特性, 如果 server 端未连接, 则请求会在
          * client 端排队等待. 此时, 即使请求已被 client 端认定为超时,
-         * 在 server 连接后, 实际还是会发送给 server. 所以增加了可选的
-         * etime 属性, 以让 server 可依此丢弃过期的请求
+         * 在 server 连接后, 实际还是会发送给 server. 所以增加了可开关
+         * 的 `request 附加 timestamp 和 timeout` 的功能, 以让
+         * server 能丢弃过期的请求
          */
-        if (self.appendExpireTime === true) {
+        if (self.appendTimestamp === true) {
             // moment().valueOf() returns Unix Offset (milliseconds)
-            data.etime = Moment().valueOf() + self.callTimeout;
+            data.timestamp = Moment().valueOf();
+            data.timeout = self.callTimeout;
         }
 
         if (client_id) {
