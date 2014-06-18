@@ -65,33 +65,94 @@ function _process(data, client_id) {
     }
 
     /**
-     * 如果 request 附加了 timestamp 信息, 则需判断 request 是否超时
+     * 由于本 RPC 要实现双向通信, 即一个对象既要实现 client 又要实现
+     * server, 所以要对收到的消息做 request 和 response 两类检查
+     *
+     * 10. 判断是否为 Notification, 目前版本不处理 Notification
+     *
+     * A Notification is a Request object without an "id" member. A
+     * Request object that is a Notification signifies the Client's
+     * lack of interest in the corresponding Response object, and as
+     * such no Response object needs to be returned to the client. The
+     * Server MUST NOT reply to a Notification, including those that
+     * are within a batch request.
+     *
+     * @todo jsonrpc.org 的 examples 中实际会以 Invalid Request 的优先
+     * 级高于 Notification:
+     *
+     * 以下会被认作 Notification, 不回复
+     * {"jsonrpc": "2.0", "method": "update", "params": [1,2,3,4,5]}
+     *
+     *
+     * 以下会被认作 Invalid Request, 回复:
+     * {"jsonrpc": "2.0", "method": 1, "params": "bar"}
+     *
+     * 但本模块目前按 Notification 优先级高于 Invalid Request 处理
+     *
      */
-    var etime;
+    if (!request.hasOwnProperty('id')) {
 
-    if (request.timestamp) {
+        /** @todo handle valid (with method) notification */
+        self.logger.debug('request is a Notification, ignored');
 
-        /**
-         * 过期时间为:
-         * request.timestamp + `request.timeout` 和 `server.serverTimeout`
-         * 中较小者
+    }
+    else if (request.hasOwnProperty('result') || request.hasOwnProperty('error')) {
+        /*
+         * 
+         * 20. 判断是否为 response
+         *
+         * Either the result member or error member MUST be included, but
+         * both members MUST NOT be included.
+         *
+         * **response 不需要回复**
+         *
          */
-        if (request.timeout > 0 && request.timeout < self.serverTimeout) {
-            etime = request.timestamp + request.timeout;
-        }
-        else {
-            etime = request.timestamp + self.serverTimeout;
-        }
+        
+        /** ignore invalid responses */
+        if (request.hasOwnProperty('result') && request.hasOwnProperty('error')) {
 
-        if (etime < Moment().valueOf()) {
-            self.logger.debug(request.id + ' expired, ignore');
+            self.logger.debug('invalid response include both result'
+                              + ' and error, ignored', request);
             return;
         }
-    }
+        if (!self.promisedRequests.hasOwnProperty(request.id)) {
 
-    if (request.hasOwnProperty('method')) {
-        /** request */
-        
+            self.logger.debug('invalid response with a not-found id,'
+                              + ' ignored', request);
+            return;
+        }
+
+        var rq = self.promisedRequests[request.id];
+        clearTimeout(rq.timeout);
+        delete self.promisedRequests[request.id];
+
+        if (request.hasOwnProperty('result')) {
+            self.logger.debug(Util.format(
+                "0MQ remote: %s(%s) <= %s", 
+                rq.method, JSON.stringify(rq.params), 
+                JSON.stringify(request.result)
+            ));
+            rq.resolve(request.result);
+        }
+        else if (request.hasOwnProperty('error')) {
+            self.logger.debug(Util.format(
+                "0MQ remote: %s(%s) <= %s", 
+                rq.method, JSON.stringify(rq.params), 
+                JSON.stringify(request.error)
+            ));             
+            rq.reject(request.error);
+        }
+        else {
+            /** @todo 不会到此 */
+            rq.reject({
+                code: -32603,
+                message: "Internal Error"
+            });
+        }
+    }
+    else if (request.hasOwnProperty('method')) {
+        /** 30. request */
+
         function _response(e, result) {
             
             if (e) {
@@ -160,37 +221,9 @@ function _process(data, client_id) {
             return;
         }
         
-    } else if (request.id && self.promisedRequests.hasOwnProperty(request.id)) {
-        /** response */
-
-        var rq = self.promisedRequests[request.id];
-        clearTimeout(rq.timeout);
-        delete self.promisedRequests[request.id];
-
-        if (request.hasOwnProperty('result')) {
-            self.logger.debug(Util.format(
-                "0MQ remote: %s(%s) <= %s", 
-                rq.method, JSON.stringify(rq.params), 
-                JSON.stringify(request.result)
-            ));
-            rq.resolve(request.result);
-        }
-        else if (request.hasOwnProperty('error')) {
-            self.logger.debug(Util.format(
-                "0MQ remote: %s(%s) <= %s", 
-                rq.method, JSON.stringify(rq.params), 
-                JSON.stringify(request.error)
-            ));             
-            rq.reject(request.error);
-        }
-        else {
-            rq.reject({
-                code: -32603,
-                message: "Internal Error"
-            });
-        }
     }
     else {
+        /** 40. invalid request */
         _send_response.apply(self, [{
             jsonrpc:'2.0',
             error: {
@@ -204,10 +237,16 @@ function _process(data, client_id) {
 var RPC = function (path) {
     this.promisedRequests = {};
     this._callings = {};
-    this.appendTimestamp = true;
     this.callTimeout = 5000;
-    this.serverTimeout = 5000;
     /**
+     * 由于 0MQ 的 MQ 特性, 如果 server 端未连接, 则请求会在
+     * client 端排队等待. 此时, 即使请求已被 client 端认定为超时,
+     * 在 server 连接后, 实际还是会发送给 server.
+     *
+     * 之前增加了 server 对 request timeout 的判断, 但该判断非 jsonrpc
+     * 的标准, 所以现在删除了该判断. 对于时间敏感的 API, API 应有时间
+     * 相关的参数, 在 API 中自行做超时判断
+     *
      * hwm: high-water mark 水位线, 避免 server 离线后, client 积压过
      * 多超时的消息
      */
@@ -341,20 +380,7 @@ RPC.prototype.call = function (method, params, client_id) {
             params: params,
             id: id
         };
-
-        /** 
-         * 由于 0MQ 的 MQ 特性, 如果 server 端未连接, 则请求会在
-         * client 端排队等待. 此时, 即使请求已被 client 端认定为超时,
-         * 在 server 连接后, 实际还是会发送给 server. 所以增加了可开关
-         * 的 `request 附加 timestamp 和 timeout` 的功能, 以让
-         * server 能丢弃过期的请求
-         */
-        if (self.appendTimestamp === true) {
-            // moment().valueOf() returns Unix Offset (milliseconds)
-            data.timestamp = Moment().valueOf();
-            data.timeout = self.callTimeout;
-        }
-
+    
         if (client_id) {
             self.logger.debug(Util.format("0MQ [%s] => [%s] %s", id, client_id, JSON.stringify(data)));
         }

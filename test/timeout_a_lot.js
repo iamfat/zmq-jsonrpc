@@ -1,34 +1,50 @@
-var zRPC = require('../');
-var assert = require("assert");
+var zRPC = require('../'),
+    assert = require("assert"),
+    moment = require('moment'),
+    fs = require('fs');
 
 describe("JSON RPC on ZMQ later binding:", function(){
 
-    var file = 'zeromq-test-' + Math.random().toString(36).substring(7),
-        path = 'ipc://' + file;
-
-    process.on('exit', function() {
-        console.log('deleting '+ file);
-        require('fs').unlinkSync(file);
-    });
-
-    var server = new zRPC();
-    server.logger = {
-        debug: function(m) {
-            console.log('server', m);
-        }
-    };
-
-    var client = new zRPC();
-    client.logger = {
-        debug: function(m) {
-            console.log('client', m);
-        }
-    };
-    client.connect(path);
+    var file,
+        path,
+        server,
+        client,
+        begin,
+        client_hwm = 5;
 
     describe("Server API", function() {
 
-        it("should not be called after client call timeout", function(done) {
+        beforeEach(function() {
+            begin = moment().valueOf();
+            file = 'zeromq-test-' + Math.random().toString(36).substring(7);
+            path = 'ipc://' + file;
+
+            server = new zRPC();
+            server.logger = {
+                debug: function(m) {
+                    console.log(moment().valueOf() - begin, 'server', m);
+                }
+            };
+
+            client = new zRPC();
+            client.clientHWM = client_hwm;
+            client.logger = {
+                debug: function(m) {
+                    console.log(moment().valueOf() - begin, 'client', m);
+                }
+            };
+            client.connect(path);
+        });
+
+        afterEach(function() {
+            server = null;
+            client = null;
+            fs.unlinkSync(file);
+        });
+
+        it("client should handle `timeout request's response` right", function(done) {
+
+            var n_server_request_received = 0;
 
             /** 设置测试时长较长 */
             this.timeout(10000);
@@ -36,11 +52,9 @@ describe("JSON RPC on ZMQ later binding:", function(){
             /** 设置 server 的 API */
             server.calling("foo", function(params, client_id) {
                 /**
-                 * 此测试中, server 不应被 call. 且 server 最终收到的
-                 * 请求应该只有 (与 clientHWM 相同的) 10个
+                 * server 被 call 的数目应该与 clientHWM 相同
                  */
-                done(new Error('server be called after this call already timeout'));
-                console.log('server be called after this call already timeout');
+                n_server_request_received++;
                 return params.foo;
             });
 
@@ -73,8 +87,9 @@ describe("JSON RPC on ZMQ later binding:", function(){
 
             /** server bind 后, 测试才结束 */
             setTimeout(function() {
+                assert.equal(n_server_request_received, client_hwm);
                 done();
-            }, 5000);
+            }, 3000);
 
         });
 
