@@ -61,7 +61,7 @@ describe("JSON RPC on ZMQ later binding:", function(){
             /** 设置 client call timeout 时长 */
             client.callTimeout = 1000;
 
-            /** client call */
+            /** client call, 这些 call 都会超时 */
             var n = 100,
                 i = 1;
 
@@ -83,13 +83,20 @@ describe("JSON RPC on ZMQ later binding:", function(){
             /** 在 client call timeout 后, server 才 bind */
             setTimeout(function() {
                 server.bind(path);
+
+                /**
+                 * bind 后的 call 应该正常处理
+                 */
+                client
+                    .call("foo", {foo:'final'})
+                    .done(function(ret){
+                        done();
+                    }, function(err) {
+                        done(err);
+                    });
+
             }, 2000);
 
-            /** server bind 后, 测试才结束 */
-            setTimeout(function() {
-                assert.equal(n_server_request_received, client_hwm);
-                done();
-            }, 3000);
 
         });
 
