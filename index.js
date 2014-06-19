@@ -67,91 +67,19 @@ function _process(data, client_id) {
     /**
      * 由于本 RPC 要实现双向通信, 即一个对象既要实现 client 又要实现
      * server, 所以要对收到的消息做 request 和 response 两类检查
-     *
-     * 10. 判断是否为 Notification, 目前版本不处理 Notification
-     *
-     * A Notification is a Request object without an "id" member. A
-     * Request object that is a Notification signifies the Client's
-     * lack of interest in the corresponding Response object, and as
-     * such no Response object needs to be returned to the client. The
-     * Server MUST NOT reply to a Notification, including those that
-     * are within a batch request.
-     *
-     * @todo jsonrpc.org 的 examples 中实际会以 Invalid Request 的优先
-     * 级高于 Notification:
-     *
-     * 以下会被认作 Notification, 不回复
-     * {"jsonrpc": "2.0", "method": "update", "params": [1,2,3,4,5]}
-     *
-     *
-     * 以下会被认作 Invalid Request, 回复:
-     * {"jsonrpc": "2.0", "method": 1, "params": "bar"}
-     *
-     * 但本模块目前按 Notification 优先级高于 Invalid Request 处理
-     *
      */
-    if (!request.hasOwnProperty('id')) {
-
-        /** @todo handle valid (with method) notification */
-        self.logger.debug('request is a Notification, ignored');
-
-    }
-    else if (request.hasOwnProperty('result') || request.hasOwnProperty('error')) {
-        /*
-         * 
-         * 20. 判断是否为 response
+    if (request.hasOwnProperty('method') && typeof(request.method) == 'string') {
+        /** 
+         * 10. request or notification
          *
-         * Either the result member or error member MUST be included, but
-         * both members MUST NOT be included.
-         *
-         * **response 不需要回复**
-         *
+         * A Notification is a Request object without an "id" member. A
+         * Request object that is a Notification signifies the Client's
+         * lack of interest in the corresponding Response object, and as
+         * such no Response object needs to be returned to the client. The
+         * Server MUST NOT reply to a Notification, including those that
+         * are within a batch request.
+         * @todo add more Invalid Request tests before 
          */
-        
-        /** ignore invalid responses */
-        if (request.hasOwnProperty('result') && request.hasOwnProperty('error')) {
-
-            self.logger.debug('invalid response include both result'
-                              + ' and error, ignored', request);
-            return;
-        }
-        if (!self.promisedRequests.hasOwnProperty(request.id)) {
-
-            self.logger.debug('invalid response with a not-found id,'
-                              + ' ignored', request);
-            return;
-        }
-
-        var rq = self.promisedRequests[request.id];
-        clearTimeout(rq.timeout);
-        delete self.promisedRequests[request.id];
-
-        if (request.hasOwnProperty('result')) {
-            self.logger.debug(Util.format(
-                "0MQ remote: %s(%s) <= %s", 
-                rq.method, JSON.stringify(rq.params), 
-                JSON.stringify(request.result)
-            ));
-            rq.resolve(request.result);
-        }
-        else if (request.hasOwnProperty('error')) {
-            self.logger.debug(Util.format(
-                "0MQ remote: %s(%s) <= %s", 
-                rq.method, JSON.stringify(rq.params), 
-                JSON.stringify(request.error)
-            ));             
-            rq.reject(request.error);
-        }
-        else {
-            /** @todo 不会到此 */
-            rq.reject({
-                code: -32603,
-                message: "Internal Error"
-            });
-        }
-    }
-    else if (request.hasOwnProperty('method')) {
-        /** 30. request */
 
         function _response(e, result) {
             
@@ -221,16 +149,80 @@ function _process(data, client_id) {
             return;
         }
         
+    }   
+    else if (request.hasOwnProperty('result') || request.hasOwnProperty('error')) {
+        /*
+         * 
+         * 20. 判断是否为 response
+         *
+         * Either the result member or error member MUST be included, but
+         * both members MUST NOT be included.
+         *
+         * **response 不需要回复**
+         *
+         */
+        
+        /** ignore invalid responses */
+        if (request.hasOwnProperty('result') && request.hasOwnProperty('error')) {
+
+            self.logger.debug('invalid response include both result'
+                              + ' and error, ignored', request);
+            return;
+        }
+        if (!self.promisedRequests.hasOwnProperty(request.id)) {
+
+            self.logger.debug('invalid response with a not-found id,'
+                              + ' ignored', request);
+            return;
+        }
+
+        var rq = self.promisedRequests[request.id];
+        clearTimeout(rq.timeout);
+        delete self.promisedRequests[request.id];
+
+        if (request.hasOwnProperty('result')) {
+            self.logger.debug(Util.format(
+                "0MQ remote: %s(%s) <= %s", 
+                rq.method, JSON.stringify(rq.params), 
+                JSON.stringify(request.result)
+            ));
+            rq.resolve(request.result);
+        }
+        else if (request.hasOwnProperty('error')) {
+            self.logger.debug(Util.format(
+                "0MQ remote: %s(%s) <= %s", 
+                rq.method, JSON.stringify(rq.params), 
+                JSON.stringify(request.error)
+            ));             
+            rq.reject(request.error);
+        }
+        else {
+            /** @todo 不会到此 */
+            rq.reject({
+                code: -32603,
+                message: "Internal Error"
+            });
+        }
     }
     else {
-        /** 40. invalid request */
-        _send_response.apply(self, [{
-            jsonrpc:'2.0',
-            error: {
-                code: -32600,
-                message: 'Invalid Request'
-            }
-        }, client_id]);
+        /**
+         * 30. 其他情况
+         *
+         * 如果有 id: 返回 invalid request
+         * 否则 (无 id): ignore
+         */
+        if (request.id) {
+            _send_response.apply(self, [{
+                jsonrpc:'2.0',
+                error: {
+                    code: -32600,
+                    message: 'Invalid Request'
+                }
+            }, client_id]);
+        }
+        else {
+            /** totally invalid */
+        }
     }
 }
 
