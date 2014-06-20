@@ -64,9 +64,23 @@ function _process(data, client_id) {
         return;
     }
 
-    if (request.hasOwnProperty('method')) {
-        /** request */
-        
+    /**
+     * 由于本 RPC 要实现双向通信, 即一个对象既要实现 client 又要实现
+     * server, 所以要对收到的消息做 request 和 response 两类检查
+     */
+    if (request.hasOwnProperty('method') && typeof(request.method) == 'string') {
+        /** 
+         * 10. request or notification
+         *
+         * A Notification is a Request object without an "id" member. A
+         * Request object that is a Notification signifies the Client's
+         * lack of interest in the corresponding Response object, and as
+         * such no Response object needs to be returned to the client. The
+         * Server MUST NOT reply to a Notification, including those that
+         * are within a batch request.
+         * @todo add more Invalid Request tests before 
+         */
+
         function _response(e, result) {
             
             if (e) {
@@ -135,8 +149,32 @@ function _process(data, client_id) {
             return;
         }
         
-    } else if (request.id && self.promisedRequests.hasOwnProperty(request.id)) {
-        /** response */
+    }   
+    else if (request.hasOwnProperty('result') || request.hasOwnProperty('error')) {
+        /*
+         * 
+         * 20. 判断是否为 response
+         *
+         * Either the result member or error member MUST be included, but
+         * both members MUST NOT be included.
+         *
+         * **response 不需要回复**
+         *
+         */
+        
+        /** ignore invalid responses */
+        if (request.hasOwnProperty('result') && request.hasOwnProperty('error')) {
+
+            self.logger.debug('invalid response include both result'
+                              + ' and error, ignored', request);
+            return;
+        }
+        if (!self.promisedRequests.hasOwnProperty(request.id)) {
+
+            self.logger.debug('invalid response with a not-found id,'
+                              + ' ignored', request);
+            return;
+        }
 
         var rq = self.promisedRequests[request.id];
         clearTimeout(rq.timeout);
@@ -159,6 +197,7 @@ function _process(data, client_id) {
             rq.reject(request.error);
         }
         else {
+            /** @todo 不会到此 */
             rq.reject({
                 code: -32603,
                 message: "Internal Error"
@@ -166,13 +205,24 @@ function _process(data, client_id) {
         }
     }
     else {
-        _send_response.apply(self, [{
-            jsonrpc:'2.0',
-            error: {
-                code: -32600,
-                message: 'Invalid Request'
-            }
-        }, client_id]);
+        /**
+         * 30. 其他情况
+         *
+         * 如果有 id: 返回 invalid request
+         * 否则 (无 id): ignore
+         */
+        if (request.id) {
+            _send_response.apply(self, [{
+                jsonrpc:'2.0',
+                error: {
+                    code: -32600,
+                    message: 'Invalid Request'
+                }
+            }, client_id]);
+        }
+        else {
+            /** totally invalid */
+        }
     }
 }
 
@@ -180,6 +230,19 @@ var RPC = function (path) {
     this.promisedRequests = {};
     this._callings = {};
     this.callTimeout = 5000;
+    /**
+     * 由于 0MQ 的 MQ 特性, 如果 server 端未连接, 则请求会在
+     * client 端排队等待. 此时, 即使请求已被 client 端认定为超时,
+     * 在 server 连接后, 实际还是会发送给 server.
+     *
+     * 之前增加了 server 对 request timeout 的判断, 但该判断非 jsonrpc
+     * 的标准, 所以现在删除了该判断. 对于时间敏感的 API, API 应有时间
+     * 相关的参数, 在 API 中自行做超时判断
+     *
+     * hwm: high-water mark 水位线, 避免 server 离线后, client 积压过
+     * 多超时的消息
+     */
+    this.clientHWM = 10;
     this.isServer = false;
     this.Exception = RPCException;
     this.logger = new Winston.Logger();
@@ -211,8 +274,12 @@ RPC.prototype.connect = function (path) {
 
     var self = this;
     self.isServer = false;
-    
-    var socket = ZeroMQ.socket("dealer");
+
+    /**
+     * dealer 的 hwm 是 block 形式, 即达到 hwm 后, 会阻止新的请求
+     * (即 MQ 中保持最老的请求)
+     */
+    var socket = ZeroMQ.socket("dealer", {'hwm': self.clientHWM});
 
     self.socket = socket;
     socket.connect(path);
