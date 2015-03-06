@@ -279,7 +279,12 @@ RPC.prototype.connect = function (path) {
      * dealer 的 hwm 是 block 形式, 即达到 hwm 后, 会阻止新的请求
      * (即 MQ 中保持最老的请求)
      */
-    var socket = ZeroMQ.socket("dealer", {'hwm': self.clientHWM});
+    var socket = ZeroMQ.socket('dealer');
+    var option = ZeroMQ.ZMQ_SNDHWM;
+    if( ZeroMQ.version.split('.')[0] === '2' ){
+        option = 'hwm';
+    }
+    socket.setsockopt(option, self.clientHWM);
 
     self.socket = socket;
     socket.connect(path);
