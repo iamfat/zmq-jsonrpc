@@ -1,6 +1,6 @@
 {
   "name": "zmq-jsonrpc",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "JSON-RPC 2.0 on 0MQ",
   "main": "index.js",
   "author": "Jia Huang <iamfat@gmail.com>",
