@@ -1,119 +1,103 @@
-var zRPC = require('../');
-var Promise = require('promise');
-var assert = require("assert");
+const zRPC = require('../')
+const assert = require('assert')
 
-describe("JSON RPC on ZMQ:", function(){
+describe('JSON RPC on ZMQ:', () => {
+  const path = 'ipc:///tmp/zeromq-1st'
+  const server = new zRPC().bind(path)
+  const client = new zRPC().connect(path)
+  let promise
     
-    var path = 'ipc://zeromq-test';
-    var server = zRPC.bind(path);
-    var client = zRPC.connect(path);
-
-    var promise;
-    
-    describe("Client RPC", function() {
-
-        it("should be called", function(done) {
-
-            promise = new Promise(function(resolve, reject) {
-                server.calling("foo", function(params, client_id) {
-                    resolve(client_id); // pass client id to next test
-                    assert.equal(params.foo, "bar");
-                    done();
-                    return params.foo;
-                });
-           });
-
-
-           client
-           .call("foo", {foo:"bar"})
-           .done(function(ret){
-               assert.equal(ret, "bar");
-           });
-
+  describe('Client RPC', () => {
+    it('should be called', done => {
+      promise = new Promise((resolve, reject) => {
+        server
+        .calling('foo', (params, clientId) => {
+          resolve(clientId) // pass client id to next test
+          assert.equal(params.foo, 'bar')
+          done()
+          return params.foo
         })
+      })
 
-    });
+      client
+      .call('foo', { foo: 'bar' })
+      .then(ret => {
+        assert.equal(ret, 'bar')
+      }, err => {
+        console.log('error', err)
+      })
+    })
+  })
 
-    describe("Server RPC", function(){
+  describe('Server RPC', () => {
+    it('should be called', done => {
+      client.calling('foo', (params, clientId) => {
+        assert.equal(params.foo, 'bar')
+        return params.foo
+      })
 
-        it("should be called", function(done){
-
-            client.calling("foo", function(params, client_id){
-                assert.equal(params.foo, "bar");
-                return params.foo;
-            });
-
-            promise.then(function(client_id) {
-                server
-                .call("foo", {foo:"bar"}, client_id)
-                .done(function(ret){
-                    assert.equal(ret, "bar");
-                    done();
-                });
-            });
-
+      promise.then(clientId => {
+        server
+        .call('foo', { foo: 'bar' }, clientId)
+        .then(ret => {
+          assert.equal(ret, 'bar')
+          done()
+        }, err => {
+          console.log('error', err)
         })
-    
-    });
-    
-});
+      })
+    })
+  })
+})
 
 
-describe("JSON RPC on ZMQ later binding:", function(){
-    
-    var path = 'ipc://zeromq-test2';
-    var server = new zRPC();
-    var client = new zRPC();
-
-    var promise;
-    
-    describe("Client RPC", function() {
-
-        it("should be called", function(done) {
-
-            promise = new Promise(function(resolve, reject) {
-                server.calling("foo", function(params, client_id) {
-                    resolve(client_id); // pass client id to next test
-                    assert.equal(params.foo, "bar");
-                    done();
-                    return params.foo;
-                });
-           });
-
-
-           client
-           .call("foo", {foo:"bar"})
-           .done(function(ret){
-               assert.equal(ret, "bar");
-           });
-
+describe('JSON RPC on ZMQ later binding:', () => {
+  const path = 'ipc:///tmp/zeromq-2ec'
+  const server = new zRPC()
+  const client = new zRPC()
+  let promise
+  
+  describe('Client RPC', () => {
+    it('should be called', done => {
+      promise = new Promise((resolve, reject) => {
+        server.calling('foo', (params, clientId) => {
+          resolve(clientId) // pass client id to next test
+          assert.equal(params.foo, 'bar')
+          done()
+          return params.foo
         })
+      })
 
-    });
+      client
+      .call('foo', { foo: 'bar' })
+      .then(ret => {
+        assert.equal(ret, 'bar')
+      }, err => {
+        console.log('error', err)
+      })
+    })
+  })
 
-    describe("Server RPC", function(){
+  describe('Server RPC', () => {
+    it('should be called', done => {
+      client.calling('foo', (params, clientId) => {
+        assert.equal(params.foo, 'bar')
+        return params.foo
+      })
 
-        it("should be called", function(done){
-
-            client.calling("foo", function(params, client_id){
-                assert.equal(params.foo, "bar");
-                return params.foo;
-            });
-
-            promise.then(function(client_id) {
-                server
-                .call("foo", {foo:"bar"}, client_id)
-                .done(function(ret){
-                    assert.equal(ret, "bar");
-                    done();
-                });
-            });
-
+      promise.then(clientId => {
+        server
+        .call('foo', {foo:'bar'}, clientId)
+        .then(ret => {
+          assert.equal(ret, 'bar')
+          done()
+        }, err => {
+          console.log('error', err)
         })
-    
-    });
-    
-    server.bind(path);
-    client.connect(path);
-    
-});
+      })
+    })
+  })
+  
+  server.bind(path)
+  client.connect(path)
+})
