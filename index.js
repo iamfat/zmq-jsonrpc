@@ -2,6 +2,7 @@
 const winston = require('winston')
 const zeromq = require('zeromq')
 const uuid = require('uuid/v4')
+const msgpack = require('msgpack')
 
 const RPCException = function (message, code) {
     this.code = code || 0
@@ -43,7 +44,7 @@ class RPC {
     let request
     
     try {
-      request = JSON.parse(data)
+      request = msgpack.unpack(data)
       this.logger.debug(`0MQ [${data}] <= ${request.id}` || 'N/A')
     }
     catch (e) {
@@ -209,7 +210,7 @@ class RPC {
   }
 
   [send](data, clientId) {
-    let response = JSON.stringify(data)
+    let response = msgpack.pack(data)
     if (clientId) {
       this.logger.debug(`0MQ [${data.id}] => ${clientId.toString('base64')}: ${JSON.stringify(data)}`)
       this.socket.send([clientId, response])                   
@@ -263,7 +264,7 @@ class RPC {
       
       this.logger.debug(`0MQ [${id}] => [${clientId}] ${JSON.stringify(data)}`)
       
-      let msg = [JSON.stringify(data)]
+      let msg = [msgpack.pack(data)]
       if (this.isServer) msg.unshift(Buffer.from(clientId, 'base64'))
       this.socket.send(msg)
       
@@ -308,3 +309,4 @@ class RPC {
 }
 
 module.exports = RPC
+
