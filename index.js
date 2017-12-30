@@ -45,7 +45,7 @@ class RPC {
     
     try {
       request = msgpack.unpack(data)
-      this.logger.debug(`0MQ [${data}] <= ${request.id}` || 'N/A')
+      this.logger.debug(`0MQ [${request.method}] <= ${request.id}` || 'N/A')
     }
     catch (e) {
       this[send]({
