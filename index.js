@@ -227,6 +227,9 @@ class RPC {
     
     this.socket
     .bindSync(path)
+    .on('error', err => {
+      this.logger.debug(`0MQ error: ${err}`)
+    })
     .on('message', (id, data) => {
       this[pass](data, id)
     })
