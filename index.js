@@ -274,7 +274,7 @@ class RPC {
         this.webServer.listen(port, () => {
             this.wsServer = new WebSocketServer({
                 server: this.webServer, verifyClient: (info,cb) => {
-                    cb(true);//允许所有连接
+                    cb(true);
                 }
             })
             this.wsServer.on('connection', this.onClientConnect.bind(this))
