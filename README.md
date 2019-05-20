@@ -23,6 +23,7 @@ server.calling('foo', function(params, clientId){
     return "bar";
 });
 server.bind(path);
+server.bindWs(port);//bind websocket server
 
 // CLIENT SIDE
 
