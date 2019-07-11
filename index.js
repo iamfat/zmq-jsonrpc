@@ -264,13 +264,8 @@ class RPC {
         params,
         id
       }
-      
+
       this.logger.debug(`0MQ [${id}] => [${clientId}] ${JSON.stringify(data)}`)
-      
-      let msg = [msgpack.pack(data)]
-      if (this.isServer) msg.unshift(Buffer.from(clientId, 'base64'))
-      this.socket.send(msg)
-      
       Reflect.set(this.promisedRequests, id, {
         method,
         params,
@@ -285,6 +280,11 @@ class RPC {
           })
         }, this.callTimeout)
       })
+
+      let msg = [msgpack.pack(data)]
+      if (this.isServer) msg.unshift(Buffer.from(clientId, 'base64'))
+      this.socket.send(msg)
+
     })
   }
 
