@@ -1,6 +1,6 @@
 {
   "name": "zmq-jsonrpc",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "JSON-RPC 2.0 on 0MQ",
   "main": "index.js",
   "author": "Jia Huang <iamfat@gmail.com>",
@@ -20,7 +20,7 @@
   "homepage": "https://github.com/iamfat/zmq-jsonrpc",
   "dependencies": {
     "uuid": "^3.1.0",
-    "winston": "^3.0.0-rc1",
+    "winston": "^2.2.0",
     "msgpack": "^1.0.2",
     "zeromq": "^4.6.0"
   }

@@ -1,3 +1,5 @@
+"use strict";
+
 // const EventEmitter = require('events')
 const winston = require('winston')
 const zeromq = require('zeromq')
@@ -9,8 +11,8 @@ const RPCException = function (message, code) {
     this.message = message
     this.toString = () => this.message
 }
-pass = Symbol('pass')
-send = Symbol('send')
+const pass = Symbol('pass')
+const send = Symbol('send')
 
 class RPC {
   constructor() {
@@ -33,14 +35,15 @@ class RPC {
     this.clientHWM = 10
     this.isServer = false
     this.Exception = RPCException
-    this.logger = winston.createLogger({
+    this.logger = new (winston.Logger)({
       transports: [
         new winston.transports.Console()
       ]
     })
   }
 
-  [pass](data, clientId = '') {
+  [pass](data, clientId) {
+    if(!clientId) clientId = '';
     let request
     
     try {
@@ -73,7 +76,7 @@ class RPC {
      * 由于本 RPC 要实现双向通信, 即一个对象既要实现 client 又要实现
      * server, 所以要对收到的消息做 request 和 response 两类检查
      */
-    if (Reflect.has(request, 'method') && typeof request.method == 'string') {
+    if ('method' in request && typeof request.method == 'string') {
       /** 
        * 10. request or notification
        *
@@ -106,7 +109,7 @@ class RPC {
         }
       }
 
-      let cb = Reflect.get(this._callings, request.method)
+      let cb = this._callings[request.method];
       if (!cb && !this._callingDefault) {
         _response({ code: -32601, message: 'Method not found' })
         return
@@ -115,7 +118,7 @@ class RPC {
       let result
       try {
         if (cb) {
-          result = Reflect.apply(cb, this, [
+          result = Function.prototype.apply.call(cb, this, [
             request.params, 
             clientId ? clientId.toString('base64') : null
           ])
@@ -125,7 +128,7 @@ class RPC {
            * 如果 method not found, 但有 callingDefault,
            * 则使用 callingDefault
            */
-          result = Reflect.apply(this._callingDefault, this, [
+          result = Function.prototype.apply.call(this._callingDefault, this, [
             request.method, 
             request.params, 
             clientId ? clientId.toString('base64') : null
@@ -148,7 +151,7 @@ class RPC {
         return
       }
     }   
-    else if (Reflect.has(request, 'result') || Reflect.has(request, 'error')) {
+    else if ('result' in request || 'error' in request) {
       /*
         * 
         * 20. 判断是否为 response
@@ -161,24 +164,24 @@ class RPC {
         */
       
       /** ignore invalid responses */
-      if (Reflect.has(request, 'result') && Reflect.has(request, 'error')) {
+      if ('result' in request && 'error' in request) {
         this.logger.debug('invalid response include both result', 'and error, ignored', request)
         return
       }
-      if (!Reflect.has(this.promisedRequests, request.id)) {
+      if (!(request.id in this.promisedRequests)) {
         this.logger.debug('invalid response with a not-found id,', 'ignored', request)
         return
       }
 
-      let rq = Reflect.get(this.promisedRequests, request.id)
+      let rq = this.promisedRequests[request.id]
       clearTimeout(rq.timeout)
-      Reflect.deleteProperty(this.promisedRequests, request.id)
+      delete this.promisedRequests[request.id]
 
-      if (Reflect.has(request, 'result')) {
+      if ('result' in request) {
         this.logger.debug(`0MQ remote: ${rq.method}(${JSON.stringify(rq.params)}) <= ${JSON.stringify(request.result)}`)
         rq.resolve(request.result)
       }
-      else if (Reflect.has(request, 'error')) {
+      else if ('error' in request) {
         this.logger.debug(`0MQ remote: ${rq.method}(${JSON.stringify(rq.params)}) <= ${JSON.stringify(request.error)}`)
         rq.reject(request.error)
       }
@@ -255,8 +258,10 @@ class RPC {
     return this
   }
 
-  call(method, params = {}, clientId = '') {
-    return new Promise((resolve, reject) => {
+  call(method, params, clientId) {
+     if(!params) params = {};
+     if(!clientId) clientId = '';
+     return new Promise((resolve, reject) => {
       let id = uuid()
       let data = {
         jsonrpc: '2.0',
@@ -266,20 +271,20 @@ class RPC {
       }
 
       this.logger.debug(`0MQ [${id}] => [${clientId}] ${JSON.stringify(data)}`)
-      Reflect.set(this.promisedRequests, id, {
+      this.promisedRequests[id] = {
         method,
         params,
         resolve,
         reject,
         timeout: setTimeout(() => {
           this.logger.debug(`0MQ [${id}] <= timeout`)
-          Reflect.deleteProperty(this.promisedRequests, id)
+          delete this.promisedRequests[id]
           reject({
             code: -32603,
             message: 'Call Timeout'
           })
         }, this.callTimeout)
-      })
+      }
 
       let msg = [msgpack.pack(data)]
       if (this.isServer) msg.unshift(Buffer.from(clientId, 'base64'))
@@ -299,13 +304,13 @@ class RPC {
   }
 
   removeCalling(key) {
-    if (Reflect.has(this._callings, key)) Reflect.deleteProperty(this._callings, key)
+    if (key in this._callings ) delete this._callings[key]
     return this
   }
 
   removeCallings(pattern) {
     for (let key of Object.keys(this._callings)) {
-      if (key.match(pattern) != null ) Reflect.deleteProperty(this._callings, key)
+      if (key.match(pattern) != null ) delete this._callings[key]
     }
     return this
   }
